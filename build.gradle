@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.36.0'
+}
+
+application {
+    mainClass = 'com.example.jdtparser.Main'
+}
