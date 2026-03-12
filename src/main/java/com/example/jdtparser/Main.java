@@ -2,6 +2,7 @@ package com.example.jdtparser;
 
 import org.eclipse.jdt.core.dom.ArrayCreation;
 import org.eclipse.jdt.core.dom.ArrayType;
+import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
@@ -24,20 +25,41 @@ import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 import org.eclipse.jdt.core.dom.WhileStatement;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Map;
 
 public class Main {
+    public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
+        ASTParser parser = ASTParser.newParser(AST.JLS8);
+        parser.setSource(source.toCharArray());
+        parser.setKind(ASTParser.K_COMPILATION_UNIT);
+        parser.setResolveBindings(true);
+        parser.setBindingsRecovery(true);
+        parser.setStatementsRecovery(true);
+        Map<String, String> options = JavaCore.getOptions();
+        options.put(JavaCore.COMPILER_SOURCE, "1.8");
+        parser.setCompilerOptions(options);
+        parser.setUnitName(file.getPath());
+        parser.setEnvironment(classPath, sourcePath, new String[] { "UTF-8", "UTF-8" }, true);
+
+        return parser;
+    }
+    
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.out.println("Usage: java -jar feature-finder.jar <JavaSourceFile.java>");
             return;
         }
+        String inputSource = "argv-mhe";
+        String[] classPath = {Paths.get("build", "classes", "java", "main").toString()};
+        String[] sourcePath = { Paths.get(inputSource).toString() , Paths.get("src", "main", "java").toString()};
         String source = new String(Files.readAllBytes(Paths.get(args[0])), StandardCharsets.UTF_8);
-        ASTParser parser = ASTParser.newParser(AST.JLS8);
-        parser.setSource(source.toCharArray());
-        parser.setKind(ASTParser.K_COMPILATION_UNIT);
+        ASTParser parser = getParser(source, sourcePath, classPath, Paths.get(args[0]).toFile());
         CompilationUnit cu = (CompilationUnit) parser.createAST(null);
         java.util.Set<String> foundFeatures = new java.util.HashSet<>();
         cu.accept(new SimpleVisitor(foundFeatures));
@@ -204,6 +226,7 @@ public class Main {
             if (node.typeParameters() != null && !node.typeParameters().isEmpty()) {
                 foundFeatures.add("generics");
             }
+
             // Set current method name for recursion detection
             currentMethod = node.getName().getIdentifier();
             boolean result = super.visit(node);
