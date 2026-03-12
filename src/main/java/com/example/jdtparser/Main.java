@@ -6,22 +6,35 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
+import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.CastExpression;
 import org.eclipse.jdt.core.dom.CatchClause;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.ConditionalExpression;
 import org.eclipse.jdt.core.dom.DoStatement;
+import org.eclipse.jdt.core.dom.EnumDeclaration;
+import org.eclipse.jdt.core.dom.Expression;
 import org.eclipse.jdt.core.dom.FieldDeclaration;
 import org.eclipse.jdt.core.dom.ForStatement;
+import org.eclipse.jdt.core.dom.IMethodBinding;
+import org.eclipse.jdt.core.dom.ITypeBinding;
+import org.eclipse.jdt.core.dom.IfStatement;
+import org.eclipse.jdt.core.dom.LambdaExpression;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.ParameterizedType;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
+import org.eclipse.jdt.core.dom.SwitchExpression;
+import org.eclipse.jdt.core.dom.SwitchStatement;
 import org.eclipse.jdt.core.dom.SynchronizedStatement;
 import org.eclipse.jdt.core.dom.ThrowStatement;
 import org.eclipse.jdt.core.dom.TryStatement;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 import org.eclipse.jdt.core.dom.WhileStatement;
 
@@ -31,7 +44,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class Main {
     public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
@@ -62,7 +78,9 @@ public class Main {
         ASTParser parser = getParser(source, sourcePath, classPath, Paths.get(args[0]).toFile());
         CompilationUnit cu = (CompilationUnit) parser.createAST(null);
         java.util.Set<String> foundFeatures = new java.util.HashSet<>();
-        cu.accept(new SimpleVisitor(foundFeatures));
+        FeatureVisitor visitor = new FeatureVisitor(foundFeatures);
+        cu.accept(visitor);
+        visitor.finalizeAnalysis();
         // Heuristic: if both threads and synchronization are present, flag possible interleavings
         if (foundFeatures.contains("threads") && foundFeatures.contains("synchronization")) {
             foundFeatures.add("interleavings");
@@ -70,371 +88,526 @@ public class Main {
         System.out.println("Features found: " + foundFeatures);
     }
 
-    static class SimpleVisitor extends ASTVisitor {
-        private final java.util.Set<String> foundFeatures;
+    static class FeatureVisitor extends ASTVisitor {
+
+        private final Set<String> features;
+
+        /* ---------- STATE ---------- */
+
         private int loopDepth = 0;
-        // Track the current method name for recursion detection
-        private String currentMethod = null;
 
-        public SimpleVisitor(java.util.Set<String> foundFeatures) {
-            this.foundFeatures = foundFeatures;
+        private IMethodBinding currentMethod;
+        private ITypeBinding currentClass;
+
+        /* call graph for recursion detection */
+        private final Map<IMethodBinding, Set<IMethodBinding>> callGraph = new HashMap<>();
+
+        /* overridden methods */
+        private final Set<IMethodBinding> overriddenMethods = new HashSet<>();
+
+
+        public FeatureVisitor(Set<String> features) {
+            this.features = features;
         }
 
-        // Detect generics in variable, field, parameter declarations, and instantiations
-        private boolean isGenericType(org.eclipse.jdt.core.dom.Type type) {
-            return type instanceof ParameterizedType;
-        }
+        /* -------------------------------------------------- */
+        /*                     UTILITIES                      */
+        /* -------------------------------------------------- */
 
-        private boolean isFileIOType(String typeName) {
-            return typeName.equals("File") || typeName.equals("FileReader") ||
-                typeName.equals("FileWriter") || typeName.equals("BufferedReader") ||
-                typeName.equals("BufferedWriter") || typeName.equals("InputStream") ||
-                typeName.equals("OutputStream") || typeName.equals("FileInputStream") ||
-                typeName.equals("FileOutputStream") || typeName.equals("RandomAccessFile") ||
-                typeName.equals("PrintWriter") || typeName.equals("FileChannel") ||
-                typeName.equals("Path") || typeName.equals("Files") ||
-                typeName.equals("DirectoryStream") || typeName.equals("SeekableByteChannel");
-        }
+        private boolean isSubtypeOf(ITypeBinding type, String qname) {
 
-        private boolean isThreadType(String typeName) {
-            return typeName.equals("Thread") || typeName.equals("Runnable") ||
-                typeName.equals("Callable") || typeName.equals("Future") ||
-                typeName.equals("Executor") || typeName.equals("ExecutorService") ||
-                typeName.equals("ScheduledExecutorService") || typeName.equals("ForkJoinPool") ||
-                typeName.equals("ThreadPoolExecutor") || typeName.equals("CompletionService") ||
-                typeName.equals("FutureTask") || typeName.equals("CountDownLatch") ||
-                typeName.equals("CyclicBarrier") || typeName.equals("Semaphore") ||
-                typeName.equals("BlockingQueue") || typeName.equals("SynchronousQueue") ||
-                typeName.equals("LinkedBlockingQueue") || typeName.equals("ArrayBlockingQueue");
-        }
+            while (type != null) {
 
-        // Detect use of java.util.concurrent.locks types in variable, field, and parameter declarations
-        private boolean isLockType(String typeName) {
-            return typeName.startsWith("Lock") || typeName.startsWith("ReentrantLock") ||
-                typeName.startsWith("ReadWriteLock") || typeName.startsWith("StampedLock") ||
-                typeName.startsWith("Condition") || typeName.startsWith("Semaphore") ||
-                typeName.startsWith("CountDownLatch") || typeName.startsWith("CyclicBarrier");
-        }
-
-        private boolean isInterfaceType(String typeName) {
-            // Heuristic: common Java interfaces, can be extended for custom interfaces
-            return typeName.equals("Runnable") || typeName.equals("Serializable") ||
-                typeName.equals("Cloneable") || typeName.equals("Comparable") ||
-                typeName.equals("Iterable") || typeName.equals("List") ||
-                typeName.equals("Set") || typeName.equals("Map") ||
-                typeName.equals("Queue") || typeName.equals("Collection") ||
-                typeName.endsWith("Listener") || typeName.endsWith("able") ||
-                typeName.endsWith("er");
-        }
-
-        private boolean isMapType(String typeName) {
-            return typeName.startsWith("Map") || typeName.startsWith("HashMap") ||
-                typeName.startsWith("TreeMap") || typeName.startsWith("LinkedHashMap") ||
-                typeName.startsWith("ConcurrentHashMap") || typeName.startsWith("WeakHashMap") ||
-                typeName.startsWith("IdentityHashMap") || typeName.startsWith("CustomMap");
-        }
-
-        private boolean isCollectionType(String typeName) {
-            return typeName.startsWith("List") || typeName.startsWith("Set") || typeName.startsWith("Queue") ||
-                typeName.startsWith("Deque") || typeName.startsWith("Collection") ||
-                typeName.startsWith("ArrayList") || typeName.startsWith("LinkedList") ||
-                typeName.startsWith("HashSet") || typeName.startsWith("TreeSet") ||
-                typeName.startsWith("PriorityQueue") || typeName.startsWith("Vector") ||
-                typeName.startsWith("Stack") || typeName.startsWith("CopyOnWriteArrayList") ||
-                typeName.startsWith("CopyOnWriteArraySet") || typeName.startsWith("ConcurrentLinkedQueue") ||
-                typeName.startsWith("ConcurrentLinkedDeque") || typeName.startsWith("CustomCollection");
-        }
-
-        private boolean isRegexType(String typeName) {
-            return typeName.equals("Pattern") || typeName.equals("Matcher") ||
-                typeName.equals("PatternSyntaxException") || typeName.equals("MatchResult");
-        }
-
-        private boolean isGUIType(String typeName) {
-            return typeName.startsWith("J") || // Swing components: JFrame, JButton, etc.
-                typeName.startsWith("AWT") || // AWT components (rare, but for completeness)
-                typeName.equals("Component") || typeName.equals("Container") ||
-                typeName.equals("Window") || typeName.equals("Panel") ||
-                typeName.equals("Applet") || typeName.equals("Dialog") ||
-                typeName.equals("Canvas") || typeName.equals("Graphics") ||
-                typeName.equals("Scene") || typeName.equals("Stage") || // JavaFX
-                typeName.equals("Node") || typeName.equals("Control") ||
-                typeName.equals("Application");
-        }
-
-        private boolean isRawType(org.eclipse.jdt.core.dom.Type type) {
-            // Only SimpleType (not ParameterizedType) and matches known generic types
-            if (type instanceof SimpleType) {
-                String name = ((SimpleType) type).getName().getFullyQualifiedName();
-                // List of common generic types
-                if (name.equals("List") || name.equals("Set") || name.equals("Map") || name.equals("Queue") ||
-                    name.equals("Collection") || name.equals("Optional") || name.equals("Iterator") ||
-                    name.equals("Comparable") || name.equals("Future") || name.equals("Callable") ||
-                    name.equals("Supplier") || name.equals("Consumer") || name.equals("Function")) {
+                if (qname.equals(type.getQualifiedName()))
                     return true;
-                }
+
+                for (ITypeBinding iface : type.getInterfaces())
+                    if (isSubtypeOf(iface, qname))
+                        return true;
+
+                type = type.getSuperclass();
             }
+
             return false;
         }
 
-        private void checkCollectionOrMapType(String typeName) {
-            if (isCollectionType(typeName)) {
-                foundFeatures.add("collections");
-            }
-            if (isMapType(typeName)) {
-                foundFeatures.add("maps");
-            }
-        }
+        private void detectPrimitive(ITypeBinding t) {
 
-        @Override
-        public boolean visit(CastExpression node) {
-            foundFeatures.add("object casting");
-            return super.visit(node);
-        }
+            if (t == null) return;
 
-        @Override
-        public boolean visit(TryStatement node) {
-            foundFeatures.add("exception-based control flow");
-            return super.visit(node);
-        }
+            if (t.isPrimitive()) {
 
-        @Override
-        public boolean visit(CatchClause node) {
-            foundFeatures.add("exception-based control flow");
-            return super.visit(node);
-        }
+                switch (t.getName()) {
 
-        @Override
-        public boolean visit(ThrowStatement node) {
-            foundFeatures.add("exception-based control flow");
-            return super.visit(node);
-        }
+                    case "byte":
+                    case "short":
+                    case "int":
+                    case "long":
+                    case "char":
+                        features.add("integers");
+                        break;
 
-        @Override
-        public boolean visit(SynchronizedStatement node) {
-            foundFeatures.add("synchronization");
-            return super.visit(node);
-        }
+                    case "float":
+                    case "double":
+                        features.add("floats");
+                        break;
 
-        @Override
-        public boolean visit(MethodDeclaration node) {
-            if (node.modifiers().toString().contains("static")) {
-                foundFeatures.add("static methods");
-            } else {
-                foundFeatures.add("instance methods");
-            }
-            if (node.typeParameters() != null && !node.typeParameters().isEmpty()) {
-                foundFeatures.add("generics");
-            }
-
-            // Set current method name for recursion detection
-            currentMethod = node.getName().getIdentifier();
-            boolean result = super.visit(node);
-            currentMethod = null;
-            return result;
-        }
-
-        @Override
-        public boolean visit(MethodInvocation node) {
-            // Heuristic: if the method is called via a type name, assume it's a static method
-            if (node.getExpression() != null && node.getExpression().toString().matches("[A-Z][A-Za-z0-9_]*")) {
-                foundFeatures.add("static methods");
-            } else {
-                foundFeatures.add("instance methods");
-            }
-            // Detect direct recursion
-            if (currentMethod != null && node.getName().getIdentifier().equals(currentMethod)) {
-                foundFeatures.add("recursion");
-            }
-            return super.visit(node);
-        }
-
-        @Override
-        public boolean visit(TypeDeclaration node) {
-            if (node.isInterface()) {
-                foundFeatures.add("interfaces");
-            } else {
-                foundFeatures.add("class");
-            }
-            String className = node.getName().getIdentifier();
-            // Check for self-referential fields
-            for (FieldDeclaration field : node.getFields()) {
-                String typeName = field.getType().toString();
-                if (typeName.equals(className)) {
-                    foundFeatures.add("recursive data structures");
-                    break;
+                    case "boolean":
+                        features.add("boolean");
+                        break;
                 }
             }
-            // Check for inheritance (extends or implements)
-            if (node.getSuperclassType() != null ||
-                (node.superInterfaceTypes() != null && !node.superInterfaceTypes().isEmpty())) {
-                foundFeatures.add("inheritance");
-            }
-            // Check for implements (interfaces)
-            if (node.superInterfaceTypes() != null && !node.superInterfaceTypes().isEmpty()) {
-                foundFeatures.add("interfaces");
-            }
-            // Check for generics in class declaration
-            if (node.typeParameters() != null && !node.typeParameters().isEmpty()) {
-                foundFeatures.add("generics");
-            }
-            return super.visit(node);
+
+            if ("java.lang.String".equals(t.getQualifiedName()))
+                features.add("strings");
         }
 
-        @Override
-        public boolean visit(VariableDeclarationStatement node) {
-            checkCollectionOrMapType(node.getType().toString());
-            if (isInterfaceType(node.getType().toString())) {
-                foundFeatures.add("interfaces");
-            }
-            if (isLockType(node.getType().toString())) {
-                foundFeatures.add("synchronization");
-            }
-            if (isThreadType(node.getType().toString())) {
-                foundFeatures.add("threads");
-            }
-            if (isRawType(node.getType())) {
-                foundFeatures.add("raw types");
-            }
-            if (isFileIOType(node.getType().toString())) {
-                foundFeatures.add("File I/O");
-            }
-            if (isGenericType(node.getType())) {
-                foundFeatures.add("generics");
-            }
-            if (isRegexType(node.getType().toString())) {
-                foundFeatures.add("RE Pattern Syntax");
-            }
-            if (isGUIType(node.getType().toString())) {
-                foundFeatures.add("GUI");
-            }
-            return super.visit(node);
+        private void detectCollections(ITypeBinding t) {
+
+            if (t == null) return;
+
+            if (isSubtypeOf(t, "java.util.Map"))
+                features.add("maps");
+
+            else if (isSubtypeOf(t, "java.util.Collection"))
+                features.add("collections");
         }
 
-        @Override
-        public boolean visit(SingleVariableDeclaration node) {
-            checkCollectionOrMapType(node.getType().toString());
-            if (isInterfaceType(node.getType().toString())) {
-                foundFeatures.add("interfaces");
-            }
-            if (isLockType(node.getType().toString())) {
-                foundFeatures.add("synchronization");
-            }
-            if (isThreadType(node.getType().toString())) {
-                foundFeatures.add("threads");
-            }
-            if (isRawType(node.getType())) {
-                foundFeatures.add("raw types");
-            }
-            if (isFileIOType(node.getType().toString())) {
-                foundFeatures.add("File I/O");
-            }
-            if (isGenericType(node.getType())) {
-                foundFeatures.add("generics");
-            }
-            if (isRegexType(node.getType().toString())) {
-                foundFeatures.add("RE Pattern Syntax");
-            }
-            if (isGUIType(node.getType().toString())) {
-                foundFeatures.add("GUI");
-            }
-            return super.visit(node);
+        private void detectIO(ITypeBinding t) {
+
+            if (t == null) return;
+
+            String q = t.getQualifiedName();
+
+            if (q.startsWith("java.io")
+                    || q.startsWith("java.nio")
+                    || q.startsWith("java.net"))
+                features.add("Network and File I/O");
         }
 
-        @Override
-        public boolean visit(FieldDeclaration node) {
-            checkCollectionOrMapType(node.getType().toString());
-            if (isInterfaceType(node.getType().toString())) {
-                foundFeatures.add("interfaces");
-            }
-            if (isLockType(node.getType().toString())) {
-                foundFeatures.add("synchronization");
-            }
-            if (isThreadType(node.getType().toString())) {
-                foundFeatures.add("threads");
-            }
-            if (isRawType(node.getType())) {
-                foundFeatures.add("raw types");
-            }
-            if (isFileIOType(node.getType().toString())) {
-                foundFeatures.add("File I/O");
-            }
-            if (isGenericType(node.getType())) {
-                foundFeatures.add("generics");
-            }
-            if (isRegexType(node.getType().toString())) {
-                foundFeatures.add("RE Pattern Syntax");
-            }
-            if (isGUIType(node.getType().toString())) {
-                foundFeatures.add("GUI");
-            }
-            return super.visit(node);
+        private void detectGUI(ITypeBinding t) {
+
+            if (t == null) return;
+
+            String q = t.getQualifiedName();
+
+            if (q.startsWith("javax.swing")
+                    || q.startsWith("java.awt")
+                    || q.startsWith("javafx"))
+                features.add("GUI");
         }
 
-        @Override
-        public boolean visit(ClassInstanceCreation node) {
-            checkCollectionOrMapType(node.getType().toString());
-            if (isThreadType(node.getType().toString())) {
-                foundFeatures.add("threads");
-            }
-            if (node.getType() instanceof SimpleType && isRawType(node.getType())) {
-                foundFeatures.add("raw types");
-            }
-            if (isFileIOType(node.getType().toString())) {
-                foundFeatures.add("File I/O");
-            }
-            if (isGenericType(node.getType())) {
-                foundFeatures.add("generics");
-            }
-            if (isRegexType(node.getType().toString())) {
-                foundFeatures.add("RE Pattern Syntax");
-            }
-            if (isGUIType(node.getType().toString())) {
-                foundFeatures.add("GUI");
-            }
-            return super.visit(node);
+        private void detectStreams(IMethodBinding m) {
+
+            if (m == null) return;
+
+            ITypeBinding t = m.getDeclaringClass();
+
+            if (t != null && t.getQualifiedName().startsWith("java.util.stream"))
+                features.add("streams");
         }
 
-        @Override
-        public boolean visit(ArrayType node) {
-            foundFeatures.add("arrays");
-            return super.visit(node);
+        private void detectRegex(IMethodBinding m) {
+
+            if (m == null) return;
+
+            ITypeBinding t = m.getDeclaringClass();
+
+            if (t != null && t.getQualifiedName().startsWith("java.util.regex"))
+                features.add("RE Pattern Syntax");
         }
 
-        @Override
-        public boolean visit(ArrayCreation node) {
-            foundFeatures.add("arrays");
-            return super.visit(node);
+        private void detectReflection(IMethodBinding m) {
+
+            if (m == null) return;
+
+            ITypeBinding t = m.getDeclaringClass();
+
+            if (t != null && t.getQualifiedName().startsWith("java.lang.reflect"))
+                features.add("reflection");
+        }
+
+        private void detectMath(IMethodBinding m) {
+
+            if (m == null) return;
+
+            ITypeBinding t = m.getDeclaringClass();
+
+            if (t != null && "java.lang.Math".equals(t.getQualifiedName()))
+                features.add("Math");
+        }
+
+
+        /* -------------------------------------------------- */
+        /*                  CONTROL FLOW                      */
+        /* -------------------------------------------------- */
+
+        private void enterLoop() {
+            features.add("loops");
+            if (loopDepth > 0)
+                features.add("nested loops");
+            loopDepth++;
+        }
+
+        private void exitLoop() {
+            loopDepth--;
         }
 
         @Override
         public boolean visit(ForStatement node) {
-            foundFeatures.add("loops");
-            if (loopDepth > 0) foundFeatures.add("nested loops");
-            loopDepth++;
-            boolean result = super.visit(node);
-            loopDepth--;
-            return result;
+            enterLoop();
+            return true;
+        }
+
+        @Override
+        public void endVisit(ForStatement node) {
+            exitLoop();
         }
 
         @Override
         public boolean visit(WhileStatement node) {
-            foundFeatures.add("loops");
-            if (loopDepth > 0) foundFeatures.add("nested loops");
-            loopDepth++;
-            boolean result = super.visit(node);
-            loopDepth--;
-            return result;
+            enterLoop();
+            return true;
+        }
+
+        @Override
+        public void endVisit(WhileStatement node) {
+            exitLoop();
         }
 
         @Override
         public boolean visit(DoStatement node) {
-            foundFeatures.add("loops");
-            if (loopDepth > 0) foundFeatures.add("nested loops");
-            loopDepth++;
-            boolean result = super.visit(node);
-            loopDepth--;
-            return result;
+            enterLoop();
+            return true;
+        }
+
+        @Override
+        public void endVisit(DoStatement node) {
+            exitLoop();
+        }
+
+        @Override
+        public boolean visit(IfStatement node) {
+            features.add("conditionals");
+            return true;
+        }
+
+        @Override
+        public boolean visit(ConditionalExpression node) {
+            features.add("conditionals");
+            return true;
+        }
+
+        @Override
+        public boolean visit(SwitchStatement node) {
+            features.add("switch statements");
+            return true;
+        }
+
+        @Override
+        public boolean visit(SwitchExpression node) {
+            features.add("switch statements");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                     METHODS                        */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(MethodDeclaration node) {
+
+            currentMethod = node.resolveBinding();
+
+            if (currentMethod != null) {
+
+                if (Modifier.isStatic(currentMethod.getModifiers()))
+                    features.add("static methods");
+                else
+                    features.add("instance methods");
+
+                /* detect overriding */
+                ITypeBinding superType = currentMethod.getDeclaringClass().getSuperclass();
+
+                while (superType != null) {
+
+                    for (IMethodBinding m : superType.getDeclaredMethods()) {
+
+                        if (currentMethod.overrides(m)) {
+                            overriddenMethods.add(currentMethod.getMethodDeclaration());
+                        }
+                    }
+
+                    superType = superType.getSuperclass();
+                }
+            }
+
+            return true;
+        }
+
+        @Override
+        public void endVisit(MethodDeclaration node) {
+            currentMethod = null;
+        }
+
+        /* -------------------------------------------------- */
+        /*                    INVOCATIONS                     */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(MethodInvocation node) {
+
+            IMethodBinding target = node.resolveMethodBinding();
+
+            if (target == null) return true;
+
+            /* build call graph */
+
+            if (currentMethod != null) {
+
+                callGraph
+                    .computeIfAbsent(currentMethod.getMethodDeclaration(),
+                            k -> new HashSet<>())
+                    .add(target.getMethodDeclaration());
+            }
+
+            /* polymorphism detection */
+
+            Expression expr = node.getExpression();
+
+            if (expr != null) {
+
+                ITypeBinding declaredType = expr.resolveTypeBinding();
+                ITypeBinding runtimeType = target.getDeclaringClass();
+
+                if (declaredType != null
+                        && runtimeType != null
+                        && !declaredType.equals(runtimeType)
+                        && overriddenMethods.contains(target.getMethodDeclaration()))
+                    features.add("polymorphism");
+            }
+
+            /* libraries */
+
+            detectStreams(target);
+            detectRegex(target);
+            detectReflection(target);
+            detectMath(target);
+
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                   EXCEPTIONS                       */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(TryStatement node) {
+            features.add("exception-based control flow");
+            return true;
+        }
+
+        @Override
+        public boolean visit(ThrowStatement node) {
+            features.add("exception-based control flow");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                    ARRAYS                          */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(ArrayCreation node) {
+            features.add("arrays");
+            return true;
+        }
+
+        @Override
+        public boolean visit(ArrayAccess node) {
+            features.add("arrays");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                TYPE DECLARATIONS                   */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(TypeDeclaration node) {
+
+            currentClass = node.resolveBinding();
+
+            if (node.getSuperclassType() != null)
+                features.add("inheritance");
+
+            if (node.superInterfaceTypes().size() > 0)
+                features.add("interfaces");
+
+            if (node.isInterface())
+                features.add("interfaces");
+
+            if (Modifier.isAbstract(node.getModifiers()))
+                features.add("abstract classes");
+
+            return true;
+        }
+
+        @Override
+        public boolean visit(FieldDeclaration node) {
+
+            if (currentClass == null) return true;
+
+            ITypeBinding fieldType = node.getType().resolveBinding();
+
+            if (fieldType != null && fieldType.equals(currentClass))
+                features.add("recursive data structures");
+
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                   TYPES                            */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(VariableDeclarationFragment node) {
+
+            if (node.resolveBinding() != null) {
+
+                ITypeBinding t = node.resolveBinding().getType();
+
+                detectPrimitive(t);
+                detectCollections(t);
+                detectIO(t);
+                detectGUI(t);
+            }
+
+            return true;
+        }
+
+        @Override
+        public boolean visit(ClassInstanceCreation node) {
+
+            ITypeBinding t = node.resolveTypeBinding();
+
+            detectCollections(t);
+            detectIO(t);
+            detectGUI(t);
+
+            if (isSubtypeOf(t, "java.lang.Thread")
+                    || isSubtypeOf(t, "java.lang.Runnable"))
+                features.add("threads");
+
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                  ENUMS                             */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(EnumDeclaration node) {
+            features.add("enumerations");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                 GENERICS                           */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(ParameterizedType node) {
+            features.add("generics");
+            return true;
+        }
+
+        @Override
+        public boolean visit(SimpleType node) {
+
+            ITypeBinding b = node.resolveBinding();
+
+            if (b != null && b.isGenericType())
+                features.add("raw types");
+
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*                    CASTS                           */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(CastExpression node) {
+
+            ITypeBinding t = node.getType().resolveBinding();
+
+            if (t == null) return true;
+
+            if (t.isPrimitive())
+                features.add("primitive casting");
+            else
+                features.add("object casting");
+
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*             LAMBDAS / ANONYMOUS                    */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(LambdaExpression node) {
+            features.add("lambdas");
+            return true;
+        }
+
+        @Override
+        public boolean visit(AnonymousClassDeclaration node) {
+            features.add("anonymous classes");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*              SYNCHRONIZATION                       */
+        /* -------------------------------------------------- */
+
+        @Override
+        public boolean visit(SynchronizedStatement node) {
+            features.add("synchronization");
+            return true;
+        }
+
+        /* -------------------------------------------------- */
+        /*             RECURSION (post-pass)                  */
+        /* -------------------------------------------------- */
+
+        public void finalizeAnalysis() {
+
+            for (IMethodBinding m : callGraph.keySet()) {
+
+                if (isRecursive(m, new HashSet<>()))
+                    features.add("recursion");
+            }
+        }
+
+        private boolean isRecursive(IMethodBinding start,
+                                    Set<IMethodBinding> visited) {
+
+            if (!visited.add(start))
+                return true;
+
+            Set<IMethodBinding> calls = callGraph.get(start);
+
+            if (calls == null) return false;
+
+            for (IMethodBinding c : calls)
+                if (isRecursive(c, visited))
+                    return true;
+
+            visited.remove(start);
+            return false;
         }
     }
+
 }
