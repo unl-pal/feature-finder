@@ -46,6 +46,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -172,6 +173,12 @@ public class Main {
             else if (isSubtypeOf(t, "java.util.Collection"))
                 features.add("collections");
         }
+        
+        private void detectEnum(ITypeBinding type) {
+            if (type != null && type.isEnum()) {
+                features.add("enumerations");
+            }
+        }
 
         private void detectIO(ITypeBinding t) {
 
@@ -196,6 +203,18 @@ public class Main {
                     || q.startsWith("javafx"))
                 features.add("GUI");
         }
+        
+        private void detectSynchronization(ITypeBinding t) {
+            if (t != null) {
+
+                String q = t.getQualifiedName();
+
+                if (q.startsWith("java.util.concurrent.locks") || q.startsWith("java.util.concurrent.atomic")) {
+                    features.add("synchronization");
+                }
+            }
+        }
+
 
         private void detectStreams(IMethodBinding m) {
 
@@ -206,6 +225,13 @@ public class Main {
             if (t != null && t.getQualifiedName().startsWith("java.util.stream"))
                 features.add("streams");
         }
+        
+		private void detectStreams(ITypeBinding t) {
+			if (t == null) return;
+
+			if (t.getQualifiedName().startsWith("java.util.stream"))
+				features.add("streams");
+		}
 
         private void detectRegex(IMethodBinding m) {
 
@@ -215,6 +241,13 @@ public class Main {
 
             if (t != null && t.getQualifiedName().startsWith("java.util.regex"))
                 features.add("RE Pattern Syntax");
+        }
+        
+        private void detectRegex(ITypeBinding t) {
+            if (t == null) return;
+
+			if (t.getQualifiedName().startsWith("java.util.regex"))
+				features.add("RE Pattern Syntax");
         }
 
         private void detectReflection(IMethodBinding m) {
@@ -226,6 +259,13 @@ public class Main {
             if (t != null && t.getQualifiedName().startsWith("java.lang.reflect"))
                 features.add("reflection");
         }
+        
+		private void detectReflection(ITypeBinding t) {
+			if (t == null) return;
+
+			if (t.getQualifiedName().startsWith("java.lang.reflect"))
+				features.add("reflection");
+		}
 
         private void detectMath(IMethodBinding m) {
 
@@ -236,6 +276,7 @@ public class Main {
             if (t != null && "java.lang.Math".equals(t.getQualifiedName()))
                 features.add("Math");
         }
+        
 
 
         /* -------------------------------------------------- */
@@ -318,13 +359,20 @@ public class Main {
         public boolean visit(MethodDeclaration node) {
 
             currentMethod = node.resolveBinding();
+            
+            if (Modifier.isSynchronized(node.getModifiers()))
+                features.add("synchronization");
 
             if (currentMethod != null) {
 
-                if (Modifier.isStatic(currentMethod.getModifiers()))
+                if (Modifier.isStatic(currentMethod.getModifiers()) && !"main".equals(currentMethod.getName()))
                     features.add("static methods");
-                else
+                else if (!currentMethod.isConstructor()) {
                     features.add("instance methods");
+                }
+                if (Modifier.isSynchronized(currentMethod.getModifiers())){
+                    features.add("synchronization");
+                }
 
                 /* detect overriding */
                 ITypeBinding superType = currentMethod.getDeclaringClass().getSuperclass();
@@ -358,6 +406,20 @@ public class Main {
         public boolean visit(MethodInvocation node) {
 
             IMethodBinding target = node.resolveMethodBinding();
+            
+            List<Expression> args = node.arguments();
+            for (Expression arg : args) {
+	            ITypeBinding argType = arg.resolveTypeBinding();
+	            detectPrimitive(argType);
+	            detectCollections(argType);
+	            detectEnum(argType);
+	            detectIO(argType);
+	            detectGUI(argType);
+	            detectSynchronization(argType);
+	            detectStreams(target);
+	            detectRegex(target);
+	            detectReflection(target);
+            }
 
             if (target == null) return true;
 
@@ -479,8 +541,13 @@ public class Main {
 
                 detectPrimitive(t);
                 detectCollections(t);
+                detectEnum(t);
                 detectIO(t);
                 detectGUI(t);
+                detectSynchronization(t);
+                detectRegex(t);
+                detectReflection(t);
+                detectStreams(t);
             }
 
             return true;
@@ -494,6 +561,10 @@ public class Main {
             detectCollections(t);
             detectIO(t);
             detectGUI(t);
+            detectSynchronization(t);
+            detectRegex(t);
+			detectReflection(t);
+			detectStreams(t);
 
             if (isSubtypeOf(t, "java.lang.Thread")
                     || isSubtypeOf(t, "java.lang.Runnable"))
