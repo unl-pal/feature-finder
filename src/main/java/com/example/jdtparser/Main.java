@@ -266,7 +266,7 @@ public class Main {
 
             String q = t.getQualifiedName();
 
-            if (q.startsWith("java.io")
+            if (q.startsWith("java.io.")
                     || q.startsWith("java.nio.")
                     || q.startsWith("java.net."))
                 features.add("Network and File I/O");
@@ -296,8 +296,9 @@ public class Main {
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
+            if (t == null) return;
 
-            if (t != null && t.getQualifiedName().startsWith("java.util.stream."))
+            if (t.getQualifiedName().startsWith("java.util.stream."))
                 features.add("streams");
         }
 
@@ -312,8 +313,9 @@ public class Main {
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
+            if (t == null) return;
 
-            if (t != null && t.getQualifiedName().startsWith("java.util.regex."))
+            if (t.getQualifiedName().startsWith("java.util.regex."))
                 features.add("RE Pattern Syntax");
         }
 
