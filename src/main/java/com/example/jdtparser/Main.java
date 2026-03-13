@@ -493,24 +493,20 @@ public class Main {
                 features.add("synchronization");
 
             if (currentMethod != null) {
-                if (Modifier.isStatic(currentMethod.getModifiers()) && !"main".equals(currentMethod.getName()))
-                    features.add("static methods");
-                else if (!currentMethod.isConstructor() && !"main".equals(currentMethod.getName())) {
-                    features.add("instance methods");
-                }
-                if (Modifier.isSynchronized(currentMethod.getModifiers())){
-                    features.add("synchronization");
+                if (!"main".equals(currentMethod.getName())) {
+                    if (Modifier.isStatic(currentMethod.getModifiers()))
+                        features.add("static methods");
+                    else if (!currentMethod.isConstructor())
+                        features.add("instance methods");
                 }
 
                 /* detect overriding */
                 ITypeBinding superType = currentMethod.getDeclaringClass().getSuperclass();
 
                 while (superType != null) {
-                    for (IMethodBinding m : superType.getDeclaredMethods()) {
-                        if (currentMethod.overrides(m)) {
+                    for (IMethodBinding m : superType.getDeclaredMethods())
+                        if (currentMethod.overrides(m))
                             overriddenMethods.add(currentMethod.getMethodDeclaration());
-                        }
-                    }
 
                     superType = superType.getSuperclass();
                 }
