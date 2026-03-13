@@ -50,6 +50,7 @@ import java.util.Set;
 
 public class Main {
     public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
+        @SuppressWarnings("deprecation")
         ASTParser parser = ASTParser.newParser(AST.JLS8);
         parser.setSource(source.toCharArray());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
@@ -128,9 +129,8 @@ public class Main {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
             /* write header */
             writer.write("filename");
-            for (String f : featureOrder) {
+            for (String f : featureOrder)
                 writer.write("," + f);
-            }
             writer.newLine();
 
             /* process each file */
@@ -147,16 +147,12 @@ public class Main {
                 Set<String> foundFeatures = new HashSet<>();
 
                 FeatureVisitor visitor = new FeatureVisitor(foundFeatures);
-
                 cu.accept(visitor);
-
                 visitor.finalizeAnalysis();
 
                 /* heuristic interleavings */
-                if (foundFeatures.contains("threads")
-                        && foundFeatures.contains("synchronization")) {
+                if (foundFeatures.contains("threads") && foundFeatures.contains("synchronization"))
                     foundFeatures.add("interleavings");
-                }
 
                 /* write row */
                 writer.write(file.toString());
@@ -535,6 +531,7 @@ public class Main {
         public boolean visit(MethodInvocation node) {
             IMethodBinding target = node.resolveMethodBinding();
 
+            @SuppressWarnings("unchecked")
             List<Expression> args = node.arguments();
             for (Expression arg : args)
                 detectTypeFeatures(arg.resolveTypeBinding());
