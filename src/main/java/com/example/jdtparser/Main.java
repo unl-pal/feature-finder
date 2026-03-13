@@ -180,7 +180,7 @@ public class Main {
         private int loopDepth = 0;
 
         private final Stack<IMethodBinding> currentMethodStack = new Stack<>();
-        private ITypeBinding currentClass;
+        private final Stack<ITypeBinding> currentClassStack = new Stack<>();
 
         /* call graph for recursion detection */
         private final Map<IMethodBinding, Set<IMethodBinding>> callGraph = new HashMap<>();
@@ -606,7 +606,8 @@ public class Main {
         /* -------------------------------------------------- */
         @Override
         public boolean visit(TypeDeclaration node) {
-            currentClass = node.resolveBinding();
+            ITypeBinding currentClass = node.resolveBinding();
+            currentClassStack.push(currentClass);
 
             if (node.getSuperclassType() != null)
                 features.add("inheritance");
@@ -624,12 +625,19 @@ public class Main {
         }
 
         @Override
+        public void endVisit(TypeDeclaration node) {
+            if (!currentClassStack.isEmpty()) {
+                currentClassStack.pop();
+            }
+        }
+
+        @Override
         public boolean visit(FieldDeclaration node) {
-            if (currentClass == null) return true;
+            if (currentClassStack.isEmpty()) return true;
 
             ITypeBinding fieldType = node.getType().resolveBinding();
 
-            if (fieldType != null && fieldType.equals(currentClass))
+            if (fieldType != null && fieldType.equals(currentClassStack.peek()))
                 features.add("recursive data structures");
 
             return true;
