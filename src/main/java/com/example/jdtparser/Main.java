@@ -200,16 +200,16 @@ public class Main {
         /*                     UTILITIES                      */
         /* -------------------------------------------------- */
 
-        private boolean isSubtypeOf(ITypeBinding type, String qname) {
-            while (type != null) {
-                if (qname.equals(type.getQualifiedName()))
+        private boolean isSubtypeOf(ITypeBinding t, String qname) {
+            while (t != null) {
+                if (qname.equals(t.getQualifiedName()))
                     return true;
 
-                for (ITypeBinding iface : type.getInterfaces())
+                for (ITypeBinding iface : t.getInterfaces())
                     if (isSubtypeOf(iface, qname))
                         return true;
 
-                type = type.getSuperclass();
+                t = t.getSuperclass();
             }
 
             return false;
@@ -254,10 +254,11 @@ public class Main {
                 features.add("collections");
         }
 
-        private void detectEnum(ITypeBinding type) {
-            if (type != null && type.isEnum()) {
+        private void detectEnum(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.isEnum())
                 features.add("enumerations");
-            }
         }
 
         private void detectIO(ITypeBinding t) {
@@ -266,8 +267,8 @@ public class Main {
             String q = t.getQualifiedName();
 
             if (q.startsWith("java.io")
-                    || q.startsWith("java.nio")
-                    || q.startsWith("java.net"))
+                    || q.startsWith("java.nio.")
+                    || q.startsWith("java.net."))
                 features.add("Network and File I/O");
         }
 
@@ -276,20 +277,19 @@ public class Main {
 
             String q = t.getQualifiedName();
 
-            if (q.startsWith("javax.swing")
-                    || q.startsWith("java.awt")
-                    || q.startsWith("javafx"))
+            if (q.startsWith("javax.swing.")
+                    || q.startsWith("java.awt.")
+                    || q.startsWith("javafx."))
                 features.add("GUI");
         }
 
         private void detectSynchronization(ITypeBinding t) {
-            if (t != null) {
-                String q = t.getQualifiedName();
+            if (t == null) return;
 
-                if (q.startsWith("java.util.concurrent.locks") || q.startsWith("java.util.concurrent.atomic")) {
-                    features.add("synchronization");
-                }
-            }
+            String q = t.getQualifiedName();
+
+            if (q.startsWith("java.util.concurrent.locks.") || q.startsWith("java.util.concurrent.atomic."))
+                features.add("synchronization");
         }
 
         private void detectStreams(IMethodBinding m) {
@@ -297,14 +297,14 @@ public class Main {
 
             ITypeBinding t = m.getDeclaringClass();
 
-            if (t != null && t.getQualifiedName().startsWith("java.util.stream"))
+            if (t != null && t.getQualifiedName().startsWith("java.util.stream."))
                 features.add("streams");
         }
 
         private void detectStreams(ITypeBinding t) {
             if (t == null) return;
 
-            if (t.getQualifiedName().startsWith("java.util.stream"))
+            if (t.getQualifiedName().startsWith("java.util.stream."))
                 features.add("streams");
         }
 
@@ -313,30 +313,32 @@ public class Main {
 
             ITypeBinding t = m.getDeclaringClass();
 
-            if (t != null && t.getQualifiedName().startsWith("java.util.regex"))
+            if (t != null && t.getQualifiedName().startsWith("java.util.regex."))
                 features.add("RE Pattern Syntax");
         }
 
         private void detectRegex(ITypeBinding t) {
             if (t == null) return;
 
-            if (t.getQualifiedName().startsWith("java.util.regex"))
+            if (t.getQualifiedName().startsWith("java.util.regex."))
                 features.add("RE Pattern Syntax");
+        }
+
+        private void detectReflection(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.getQualifiedName().startsWith("java.lang.reflect."))
+                features.add("reflection");
         }
 
         private void detectReflection(IMethodBinding m) {
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
-
-            if (t != null && t.getQualifiedName().startsWith("java.lang.reflect"))
-                features.add("reflection");
-        }
-
-        private void detectReflection(ITypeBinding t) {
             if (t == null) return;
 
-            if (t.getQualifiedName().startsWith("java.lang.reflect"))
+            if (t.getQualifiedName().startsWith("java.lang.reflect."))
+                features.add("reflection");
                 features.add("reflection");
         }
 
@@ -344,8 +346,9 @@ public class Main {
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
+            if (t == null) return;
 
-            if (t != null && "java.lang.Math".equals(t.getQualifiedName()))
+            if ("java.lang.Math".equals(t.getQualifiedName()))
                 features.add("Math");
         }
 
