@@ -376,6 +376,29 @@ public class Main {
                 features.add("Math");
         }
 
+        private void detectTypeFeatures(ITypeBinding t) {
+            if (t == null) return;
+
+            detectPrimitive(t);
+            detectCollections(t);
+            detectEnum(t);
+            detectIO(t);
+            detectGUI(t);
+            detectSynchronization(t);
+            detectRegex(t);
+            detectReflection(t);
+            detectStreams(t);
+        }
+
+        private void detectTypeFeatures(IMethodBinding m) {
+            if (m == null) return;
+
+            detectMath(m);
+            detectRegex(m);
+            detectReflection(m);
+            detectStreams(m);
+        }
+
         /* -------------------------------------------------- */
         /*                  CONTROL FLOW                      */
         /* -------------------------------------------------- */
@@ -497,24 +520,15 @@ public class Main {
             IMethodBinding target = node.resolveMethodBinding();
 
             List<Expression> args = node.arguments();
-            for (Expression arg : args) {
-                ITypeBinding argType = arg.resolveTypeBinding();
-                detectPrimitive(argType);
-                detectCollections(argType);
-                detectEnum(argType);
-                detectIO(argType);
-                detectGUI(argType);
-                detectSynchronization(argType);
-                detectStreams(target);
-                detectRegex(target);
-                detectReflection(target);
-            }
+            for (Expression arg : args)
+                detectTypeFeatures(arg.resolveTypeBinding());
 
             if (target == null) return true;
 
+            detectTypeFeatures(target);
+
             /* build call graph */
             if (currentMethod != null) {
-
                 callGraph
                     .computeIfAbsent(currentMethod.getMethodDeclaration(),
                             k -> new HashSet<>())
@@ -534,12 +548,6 @@ public class Main {
                         && overriddenMethods.contains(target.getMethodDeclaration()))
                     features.add("polymorphism");
             }
-
-            /* libraries */
-            detectStreams(target);
-            detectRegex(target);
-            detectReflection(target);
-            detectMath(target);
 
             return true;
         }
@@ -619,19 +627,8 @@ public class Main {
         /* -------------------------------------------------- */
         @Override
         public boolean visit(VariableDeclarationFragment node) {
-            if (node.resolveBinding() != null) {
-                ITypeBinding t = node.resolveBinding().getType();
-
-                detectPrimitive(t);
-                detectCollections(t);
-                detectEnum(t);
-                detectIO(t);
-                detectGUI(t);
-                detectSynchronization(t);
-                detectRegex(t);
-                detectReflection(t);
-                detectStreams(t);
-            }
+            if (node.resolveBinding() != null)
+                detectTypeFeatures(node.resolveBinding().getType());
 
             return true;
         }
@@ -640,13 +637,7 @@ public class Main {
         public boolean visit(ClassInstanceCreation node) {
             ITypeBinding t = node.resolveTypeBinding();
 
-            detectCollections(t);
-            detectIO(t);
-            detectGUI(t);
-            detectSynchronization(t);
-            detectRegex(t);
-            detectReflection(t);
-            detectStreams(t);
+            detectTypeFeatures(t);
 
             if (isSubtypeOf(t, "java.lang.Thread")
                     || isSubtypeOf(t, "java.lang.Runnable"))
