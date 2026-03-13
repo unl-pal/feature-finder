@@ -1,15 +1,12 @@
 package com.example.jdtparser;
 
 import org.eclipse.jdt.core.dom.ArrayCreation;
-import org.eclipse.jdt.core.dom.ArrayType;
-import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.CatchClause;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.ConditionalExpression;
@@ -27,7 +24,6 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.ParameterizedType;
 import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.SwitchExpression;
 import org.eclipse.jdt.core.dom.SwitchStatement;
 import org.eclipse.jdt.core.dom.SynchronizedStatement;
@@ -35,8 +31,8 @@ import org.eclipse.jdt.core.dom.ThrowStatement;
 import org.eclipse.jdt.core.dom.TryStatement;
 import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
-import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
 import org.eclipse.jdt.core.dom.WhileStatement;
+import org.eclipse.jdt.core.JavaCore;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -45,7 +41,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,20 +52,20 @@ public class Main {
         ASTParser parser = ASTParser.newParser(AST.JLS8);
         parser.setSource(source.toCharArray());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
-        parser.setResolveBindings(true);
-        parser.setBindingsRecovery(true);
-        parser.setStatementsRecovery(true);
         Map<String, String> options = JavaCore.getOptions();
         options.put(JavaCore.COMPILER_SOURCE, "1.8");
         parser.setCompilerOptions(options);
+
+        parser.setResolveBindings(true);
+        parser.setBindingsRecovery(true);
+        parser.setStatementsRecovery(true);
         parser.setUnitName(file.getPath());
         parser.setEnvironment(classPath, sourcePath, new String[] { "UTF-8", "UTF-8" }, true);
 
         return parser;
     }
-    
-    public static void main(String[] args) throws Exception {
 
+    public static void main(String[] args) throws Exception {
         String inputSource = ".";
 
         String[] classPath = {
@@ -126,13 +121,11 @@ public class Main {
         List<Path> files = new ArrayList<>();
 
         Files.walk(root)
-                .filter(p -> p.toString().endsWith("Main.java"))
-                .forEach(files::add);
+            .filter(p -> p.toString().endsWith(".java"))
+            .forEach(files::add);
 
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
-
             /* write header */
-
             writer.write("filename");
             for (String f : featureOrder) {
                 writer.write("," + f);
@@ -140,12 +133,10 @@ public class Main {
             writer.newLine();
 
             /* process each file */
-
             for (Path file : files) {
-
                 String source = new String(
-                        Files.readAllBytes(file),
-                        StandardCharsets.UTF_8
+                    Files.readAllBytes(file),
+                    StandardCharsets.UTF_8
                 );
 
                 ASTParser parser = getParser(source, sourcePath, classPath, file.toFile());
@@ -161,18 +152,15 @@ public class Main {
                 visitor.finalizeAnalysis();
 
                 /* heuristic interleavings */
-
                 if (foundFeatures.contains("threads")
                         && foundFeatures.contains("synchronization")) {
                     foundFeatures.add("interleavings");
                 }
 
                 /* write row */
-
                 writer.write(file.toString());
 
                 for (String feature : featureOrder) {
-
                     if (foundFeatures.contains(feature))
                         writer.write(",YES");
                     else
@@ -186,9 +174,7 @@ public class Main {
         System.out.println("Analysis complete. Results written to features.csv");
     }
 
-
     static class FeatureVisitor extends ASTVisitor {
-
         private final Set<String> features;
 
         /* ---------- STATE ---------- */
@@ -214,9 +200,7 @@ public class Main {
         /* -------------------------------------------------- */
 
         private boolean isSubtypeOf(ITypeBinding type, String qname) {
-
             while (type != null) {
-
                 if (qname.equals(type.getQualifiedName()))
                     return true;
 
@@ -231,13 +215,10 @@ public class Main {
         }
 
         private void detectPrimitive(ITypeBinding t) {
-
             if (t == null) return;
 
             if (t.isPrimitive()) {
-
                 switch (t.getName()) {
-
                     case "byte":
                     case "short":
                     case "int":
@@ -262,17 +243,16 @@ public class Main {
         }
 
         private void detectCollections(ITypeBinding t) {
-
             if (t == null) return;
+
             t = t.getErasure();
 
             if (isSubtypeOf(t, "java.util.Map"))
                 features.add("maps");
-
             else if (isSubtypeOf(t, "java.util.Collection"))
                 features.add("collections");
         }
-        
+
         private void detectEnum(ITypeBinding type) {
             if (type != null && type.isEnum()) {
                 features.add("enumerations");
@@ -280,7 +260,6 @@ public class Main {
         }
 
         private void detectIO(ITypeBinding t) {
-
             if (t == null) return;
 
             String q = t.getQualifiedName();
@@ -292,7 +271,6 @@ public class Main {
         }
 
         private void detectGUI(ITypeBinding t) {
-
             if (t == null) return;
 
             String q = t.getQualifiedName();
@@ -302,10 +280,9 @@ public class Main {
                     || q.startsWith("javafx"))
                 features.add("GUI");
         }
-        
+
         private void detectSynchronization(ITypeBinding t) {
             if (t != null) {
-
                 String q = t.getQualifiedName();
 
                 if (q.startsWith("java.util.concurrent.locks") || q.startsWith("java.util.concurrent.atomic")) {
@@ -314,9 +291,7 @@ public class Main {
             }
         }
 
-
         private void detectStreams(IMethodBinding m) {
-
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
@@ -324,16 +299,15 @@ public class Main {
             if (t != null && t.getQualifiedName().startsWith("java.util.stream"))
                 features.add("streams");
         }
-        
-		private void detectStreams(ITypeBinding t) {
-			if (t == null) return;
 
-			if (t.getQualifiedName().startsWith("java.util.stream"))
-				features.add("streams");
-		}
+        private void detectStreams(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.getQualifiedName().startsWith("java.util.stream"))
+                features.add("streams");
+        }
 
         private void detectRegex(IMethodBinding m) {
-
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
@@ -341,16 +315,15 @@ public class Main {
             if (t != null && t.getQualifiedName().startsWith("java.util.regex"))
                 features.add("RE Pattern Syntax");
         }
-        
+
         private void detectRegex(ITypeBinding t) {
             if (t == null) return;
 
-			if (t.getQualifiedName().startsWith("java.util.regex"))
-				features.add("RE Pattern Syntax");
+            if (t.getQualifiedName().startsWith("java.util.regex"))
+                features.add("RE Pattern Syntax");
         }
 
         private void detectReflection(IMethodBinding m) {
-
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
@@ -358,16 +331,15 @@ public class Main {
             if (t != null && t.getQualifiedName().startsWith("java.lang.reflect"))
                 features.add("reflection");
         }
-        
-		private void detectReflection(ITypeBinding t) {
-			if (t == null) return;
 
-			if (t.getQualifiedName().startsWith("java.lang.reflect"))
-				features.add("reflection");
-		}
+        private void detectReflection(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.getQualifiedName().startsWith("java.lang.reflect"))
+                features.add("reflection");
+        }
 
         private void detectMath(IMethodBinding m) {
-
             if (m == null) return;
 
             ITypeBinding t = m.getDeclaringClass();
@@ -375,13 +347,10 @@ public class Main {
             if (t != null && "java.lang.Math".equals(t.getQualifiedName()))
                 features.add("Math");
         }
-        
-
 
         /* -------------------------------------------------- */
         /*                  CONTROL FLOW                      */
         /* -------------------------------------------------- */
-
         private void enterLoop() {
             features.add("loops");
             if (loopDepth > 0)
@@ -453,17 +422,14 @@ public class Main {
         /* -------------------------------------------------- */
         /*                     METHODS                        */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(MethodDeclaration node) {
-
             currentMethod = node.resolveBinding();
-            
+
             if (Modifier.isSynchronized(node.getModifiers()))
                 features.add("synchronization");
 
             if (currentMethod != null) {
-
                 if (Modifier.isStatic(currentMethod.getModifiers()) && !"main".equals(currentMethod.getName()))
                     features.add("static methods");
                 else if (!currentMethod.isConstructor() && !"main".equals(currentMethod.getName())) {
@@ -477,9 +443,7 @@ public class Main {
                 ITypeBinding superType = currentMethod.getDeclaringClass().getSuperclass();
 
                 while (superType != null) {
-
                     for (IMethodBinding m : superType.getDeclaredMethods()) {
-
                         if (currentMethod.overrides(m)) {
                             overriddenMethods.add(currentMethod.getMethodDeclaration());
                         }
@@ -500,30 +464,27 @@ public class Main {
         /* -------------------------------------------------- */
         /*                    INVOCATIONS                     */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(MethodInvocation node) {
-
             IMethodBinding target = node.resolveMethodBinding();
-            
+
             List<Expression> args = node.arguments();
             for (Expression arg : args) {
-	            ITypeBinding argType = arg.resolveTypeBinding();
-	            detectPrimitive(argType);
-	            detectCollections(argType);
-	            detectEnum(argType);
-	            detectIO(argType);
-	            detectGUI(argType);
-	            detectSynchronization(argType);
-	            detectStreams(target);
-	            detectRegex(target);
-	            detectReflection(target);
+                ITypeBinding argType = arg.resolveTypeBinding();
+                detectPrimitive(argType);
+                detectCollections(argType);
+                detectEnum(argType);
+                detectIO(argType);
+                detectGUI(argType);
+                detectSynchronization(argType);
+                detectStreams(target);
+                detectRegex(target);
+                detectReflection(target);
             }
 
             if (target == null) return true;
 
             /* build call graph */
-
             if (currentMethod != null) {
 
                 callGraph
@@ -533,11 +494,9 @@ public class Main {
             }
 
             /* polymorphism detection */
-
             Expression expr = node.getExpression();
 
             if (expr != null) {
-
                 ITypeBinding declaredType = expr.resolveTypeBinding();
                 ITypeBinding runtimeType = target.getDeclaringClass();
 
@@ -549,7 +508,6 @@ public class Main {
             }
 
             /* libraries */
-
             detectStreams(target);
             detectRegex(target);
             detectReflection(target);
@@ -561,7 +519,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*                   EXCEPTIONS                       */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(TryStatement node) {
             features.add("exception-based control flow");
@@ -577,7 +534,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*                    ARRAYS                          */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(ArrayCreation node) {
             features.add("arrays");
@@ -593,10 +549,8 @@ public class Main {
         /* -------------------------------------------------- */
         /*                TYPE DECLARATIONS                   */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(TypeDeclaration node) {
-
             currentClass = node.resolveBinding();
 
             if (node.getSuperclassType() != null)
@@ -616,7 +570,6 @@ public class Main {
 
         @Override
         public boolean visit(FieldDeclaration node) {
-
             if (currentClass == null) return true;
 
             ITypeBinding fieldType = node.getType().resolveBinding();
@@ -630,12 +583,9 @@ public class Main {
         /* -------------------------------------------------- */
         /*                   TYPES                            */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(VariableDeclarationFragment node) {
-
             if (node.resolveBinding() != null) {
-
                 ITypeBinding t = node.resolveBinding().getType();
 
                 detectPrimitive(t);
@@ -654,7 +604,6 @@ public class Main {
 
         @Override
         public boolean visit(ClassInstanceCreation node) {
-
             ITypeBinding t = node.resolveTypeBinding();
 
             detectCollections(t);
@@ -662,8 +611,8 @@ public class Main {
             detectGUI(t);
             detectSynchronization(t);
             detectRegex(t);
-			detectReflection(t);
-			detectStreams(t);
+            detectReflection(t);
+            detectStreams(t);
 
             if (isSubtypeOf(t, "java.lang.Thread")
                     || isSubtypeOf(t, "java.lang.Runnable"))
@@ -675,7 +624,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*                  ENUMS                             */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(EnumDeclaration node) {
             features.add("enumerations");
@@ -685,7 +633,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*                 GENERICS                           */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(ParameterizedType node) {
             features.add("generics");
@@ -694,7 +641,6 @@ public class Main {
 
         @Override
         public boolean visit(SimpleType node) {
-
             ITypeBinding b = node.resolveBinding();
 
             if (b != null && b.isGenericType())
@@ -706,10 +652,8 @@ public class Main {
         /* -------------------------------------------------- */
         /*                    CASTS                           */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(CastExpression node) {
-
             ITypeBinding t = node.getType().resolveBinding();
 
             if (t == null) return true;
@@ -725,7 +669,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*             LAMBDAS / ANONYMOUS                    */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(LambdaExpression node) {
             features.add("lambdas");
@@ -741,7 +684,6 @@ public class Main {
         /* -------------------------------------------------- */
         /*              SYNCHRONIZATION                       */
         /* -------------------------------------------------- */
-
         @Override
         public boolean visit(SynchronizedStatement node) {
             features.add("synchronization");
@@ -751,19 +693,14 @@ public class Main {
         /* -------------------------------------------------- */
         /*             RECURSION (post-pass)                  */
         /* -------------------------------------------------- */
-
         public void finalizeAnalysis() {
-
             for (IMethodBinding m : callGraph.keySet()) {
-
                 if (isRecursive(m, new HashSet<>()))
                     features.add("recursion");
             }
         }
 
-        private boolean isRecursive(IMethodBinding start,
-                                    Set<IMethodBinding> visited) {
-
+        private boolean isRecursive(IMethodBinding start, Set<IMethodBinding> visited) {
             if (!visited.add(start))
                 return true;
 
@@ -779,5 +716,4 @@ public class Main {
             return false;
         }
     }
-
 }
