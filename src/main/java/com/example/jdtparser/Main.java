@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 
 public class Main {
     public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
@@ -178,7 +179,7 @@ public class Main {
 
         private int loopDepth = 0;
 
-        private IMethodBinding currentMethod;
+        private final Stack<IMethodBinding> currentMethodStack = new Stack<>();
         private ITypeBinding currentClass;
 
         /* call graph for recursion detection */
@@ -487,26 +488,27 @@ public class Main {
         /* -------------------------------------------------- */
         @Override
         public boolean visit(MethodDeclaration node) {
-            currentMethod = node.resolveBinding();
+            IMethodBinding methodBinding = node.resolveBinding();
+            currentMethodStack.push(methodBinding);
 
             if (Modifier.isSynchronized(node.getModifiers()))
                 features.add("synchronization");
 
-            if (currentMethod != null) {
-                if (!"main".equals(currentMethod.getName())) {
-                    if (Modifier.isStatic(currentMethod.getModifiers()))
+            if (methodBinding != null) {
+                if (!"main".equals(methodBinding.getName())) {
+                    if (Modifier.isStatic(methodBinding.getModifiers()))
                         features.add("static methods");
-                    else if (!currentMethod.isConstructor())
+                    else if (!methodBinding.isConstructor())
                         features.add("instance methods");
                 }
 
                 /* detect overriding */
-                ITypeBinding superType = currentMethod.getDeclaringClass().getSuperclass();
+                ITypeBinding superType = methodBinding.getDeclaringClass().getSuperclass();
 
                 while (superType != null) {
                     for (IMethodBinding m : superType.getDeclaredMethods())
-                        if (currentMethod.overrides(m))
-                            overriddenMethods.add(currentMethod.getMethodDeclaration());
+                        if (methodBinding.overrides(m))
+                            overriddenMethods.add(methodBinding.getMethodDeclaration());
 
                     superType = superType.getSuperclass();
                 }
@@ -517,7 +519,9 @@ public class Main {
 
         @Override
         public void endVisit(MethodDeclaration node) {
-            currentMethod = null;
+            if (!currentMethodStack.isEmpty()) {
+                currentMethodStack.pop();
+            }
         }
 
         /* -------------------------------------------------- */
@@ -537,9 +541,9 @@ public class Main {
             detectTypeFeatures(target);
 
             /* build call graph */
-            if (currentMethod != null) {
+            if (!currentMethodStack.isEmpty()) {
                 callGraph
-                    .computeIfAbsent(currentMethod.getMethodDeclaration(),
+                    .computeIfAbsent(currentMethodStack.peek().getMethodDeclaration(),
                             k -> new HashSet<>())
                     .add(target.getMethodDeclaration());
             }
