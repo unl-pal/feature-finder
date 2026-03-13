@@ -489,12 +489,13 @@ public class Main {
         @Override
         public boolean visit(MethodDeclaration node) {
             IMethodBinding methodBinding = node.resolveBinding();
-            currentMethodStack.push(methodBinding);
 
             if (Modifier.isSynchronized(node.getModifiers()))
                 features.add("synchronization");
 
             if (methodBinding != null) {
+                currentMethodStack.push(methodBinding);
+
                 if (!"main".equals(methodBinding.getName())) {
                     if (Modifier.isStatic(methodBinding.getModifiers()))
                         features.add("static methods");
@@ -682,8 +683,9 @@ public class Main {
         @Override
         public boolean visit(SimpleType node) {
             ITypeBinding b = node.resolveBinding();
+            if (b == null) return true;
 
-            if (b != null && b.isGenericType())
+            if (b.isRawType())
                 features.add("raw types");
 
             return true;
