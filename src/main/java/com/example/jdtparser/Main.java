@@ -124,7 +124,7 @@ public class Main {
         List<Path> files = new ArrayList<>();
 
         Files.walk(root)
-            .filter(p -> p.toString().endsWith(".java"))
+            .filter(p -> p.toString().endsWith("Main.java"))
             .forEach(files::add);
 
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
@@ -199,6 +199,7 @@ public class Main {
 
         private boolean isSubtypeOf(ITypeBinding t, String qname) {
             while (t != null) {
+                t = t.getErasure();
                 if (qname.equals(t.getQualifiedName()))
                     return true;
 
@@ -242,8 +243,6 @@ public class Main {
 
         private void detectCollections(ITypeBinding t) {
             if (t == null) return;
-
-            t = t.getErasure();
 
             if (isSubtypeOf(t, "java.util.Map"))
                 features.add("maps");
@@ -502,9 +501,8 @@ public class Main {
             if (methodBinding != null) {
                 currentMethodStack.push(methodBinding);
 
-                detectTypeFeatures(methodBinding);
-
                 if (!"main".equals(methodBinding.getName())) {
+                    detectTypeFeatures(methodBinding);
                     if (Modifier.isStatic(methodBinding.getModifiers()))
                         features.add("static methods");
                     else if (!methodBinding.isConstructor())
@@ -718,6 +716,7 @@ public class Main {
             features.add("lambdas");
             return true;
         }
+		
 
         @Override
         public boolean visit(AnonymousClassDeclaration node) {
