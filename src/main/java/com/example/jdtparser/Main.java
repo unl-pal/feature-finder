@@ -1,6 +1,7 @@
 package com.example.jdtparser;
 
 import org.eclipse.jdt.core.dom.ArrayCreation;
+import org.eclipse.jdt.core.dom.ArrayType;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
@@ -25,6 +26,8 @@ import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.ParameterizedType;
 import org.eclipse.jdt.core.dom.SimpleType;
+import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
+import org.eclipse.jdt.core.dom.StringLiteral;
 import org.eclipse.jdt.core.dom.SwitchExpression;
 import org.eclipse.jdt.core.dom.SwitchStatement;
 import org.eclipse.jdt.core.dom.SynchronizedStatement;
@@ -124,7 +127,7 @@ public class Main {
         List<Path> files = new ArrayList<>();
 
         Files.walk(root)
-            .filter(p -> p.toString().endsWith("Main.java"))
+            .filter(p -> p.toString().endsWith(".java"))
             .forEach(files::add);
 
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
@@ -236,8 +239,30 @@ public class Main {
                         break;
                 }
             }
+            
+			String q = t.getQualifiedName();
+            
+            /* primitive wrappers */
+            switch (q) {
+                case "java.lang.Byte":
+                case "java.lang.Short":
+                case "java.lang.Integer":
+                case "java.lang.Long":
+                case "java.lang.Character":
+                    features.add("integers");
+                    break;
 
-            if ("java.lang.String".equals(t.getQualifiedName()))
+                case "java.lang.Float":
+                case "java.lang.Double":
+                    features.add("floats");
+                    break;
+
+                case "java.lang.Boolean":
+                    features.add("boolean");
+                    break;
+            }
+
+            if ("java.lang.String".equals(q))
                 features.add("strings");
         }
 
@@ -554,13 +579,46 @@ public class Main {
 
             if (expr != null) {
                 ITypeBinding declaredType = expr.resolveTypeBinding();
-                ITypeBinding runtimeType = target.getDeclaringClass();
 
-                if (declaredType != null
-                        && runtimeType != null
-                        && !declaredType.equals(runtimeType)
-                        && overriddenMethods.contains(target.getMethodDeclaration()))
-                    features.add("polymorphism");
+                if (declaredType != null) {
+
+                    IMethodBinding decl = target.getMethodDeclaration();
+
+                    /* method must belong to the declared type hierarchy */
+                    ITypeBinding owner = decl.getDeclaringClass();
+
+                    if (owner != null && declaredType.isAssignmentCompatible(owner)) {
+
+                        /* ensure the receiver is NOT typed as the concrete class */
+                        if (!declaredType.equals(owner)) {
+
+                            /* check that this method participates in overriding */
+                            if (overriddenMethods.contains(decl))
+                                features.add("polymorphism");
+                        }
+                    }
+                }
+            }
+            
+            /* subtype polymorphism through parameter passing */
+            List<?> args = node.arguments();
+            ITypeBinding[] params = target.getParameterTypes();
+
+            for (int i = 0; i < args.size() && i < params.length; i++) {
+
+                Expression arg = (Expression) args.get(i);
+
+                ITypeBinding argType = arg.resolveTypeBinding();
+                ITypeBinding paramType = params[i];
+
+                if (argType != null && paramType != null) {
+
+                    /* argument is a subtype of parameter */
+                    if (!argType.equals(paramType) && argType.isSubTypeCompatible(paramType)) {
+                        features.add("polymorphism");
+                        break;
+                    }
+                }
             }
 
             return true;
@@ -649,16 +707,46 @@ public class Main {
         /* -------------------------------------------------- */
         @Override
         public boolean visit(VariableDeclarationFragment node) {
-            if (node.resolveBinding() != null)
-                detectTypeFeatures(node.resolveBinding().getType());
+            if (node.resolveBinding() != null) {
+                ITypeBinding type = node.resolveBinding().getType();
+
+                detectTypeFeatures(type);
+
+                if (type != null && type.isRawType())
+                    features.add("raw types");
+            }
 
             return true;
         }
-
         @Override
         public boolean visit(ClassInstanceCreation node) {
             detectTypeFeatures(node.resolveTypeBinding());
 
+            return true;
+        }
+        
+        @Override
+        public boolean visit(StringLiteral node) {
+            features.add("strings");
+            return true;
+        }
+        
+        @Override
+        public boolean visit(ArrayType node) {
+            /* check if this array type belongs to a method parameter */
+            if (node.getParent() instanceof SingleVariableDeclaration) {
+
+                SingleVariableDeclaration param = (SingleVariableDeclaration) node.getParent();
+
+                if (param.getParent() instanceof MethodDeclaration) {
+
+                    MethodDeclaration method = (MethodDeclaration) param.getParent();
+
+                    if ("main".equals(method.getName().getIdentifier()))
+                        return true; // skip String[] args
+                }
+            }
+            features.add("arrays");
             return true;
         }
 
