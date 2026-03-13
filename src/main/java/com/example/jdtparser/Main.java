@@ -730,8 +730,10 @@ public class Main {
         /* -------------------------------------------------- */
         public void finalizeAnalysis() {
             for (IMethodBinding m : callGraph.keySet()) {
-                if (isRecursive(m, new HashSet<>()))
+                if (isRecursive(m, new HashSet<>())) {
                     features.add("recursion");
+                    break;
+                }
             }
         }
 
