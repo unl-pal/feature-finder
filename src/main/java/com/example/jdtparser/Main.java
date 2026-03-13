@@ -331,6 +331,25 @@ public class Main {
                 features.add("reflection");
         }
 
+        private static final Set<String> CLASS_REFLECTION_METHODS = Set.of(
+            "forName",
+            "newInstance",
+            "getMethod",
+            "getDeclaredMethod",
+            "getMethods",
+            "getDeclaredMethods",
+            "getField",
+            "getDeclaredField",
+            "getFields",
+            "getDeclaredFields",
+            "getConstructor",
+            "getDeclaredConstructor",
+            "getConstructors",
+            "getDeclaredConstructors",
+            "getAnnotation",
+            "getAnnotations"
+        );
+
         private void detectReflection(IMethodBinding m) {
             if (m == null) return;
 
@@ -339,6 +358,9 @@ public class Main {
 
             if (t.getQualifiedName().startsWith("java.lang.reflect."))
                 features.add("reflection");
+            else if (isSubtypeOf(t, "java.lang.Class") && CLASS_REFLECTION_METHODS.contains(m.getName()))
+                features.add("reflection");
+            else if (isSubtypeOf(t, "java.lang.ClassLoader") && m.getName().equals("loadClass"))
                 features.add("reflection");
         }
 
