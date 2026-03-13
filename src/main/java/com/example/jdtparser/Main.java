@@ -261,6 +261,13 @@ public class Main {
                 features.add("enumerations");
         }
 
+        private void detectArray(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.isArray())
+                features.add("arrays");
+        }
+
         private void detectIO(ITypeBinding t) {
             if (t == null) return;
 
@@ -389,6 +396,7 @@ public class Main {
             detectPrimitive(t);
             detectCollections(t);
             detectEnum(t);
+            detectArray(t);
             detectIO(t);
             detectGUI(t);
             detectSynchronization(t);
