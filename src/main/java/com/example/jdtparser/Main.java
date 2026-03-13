@@ -326,6 +326,13 @@ public class Main {
                 features.add("RE Pattern Syntax");
         }
 
+        private void detectThreading(ITypeBinding t) {
+            if (t == null) return;
+
+            if (isSubtypeOf(t, "java.lang.Thread") || isSubtypeOf(t, "java.lang.Runnable"))
+                features.add("threads");
+        }
+
         private void detectReflection(ITypeBinding t) {
             if (t == null) return;
 
@@ -388,6 +395,7 @@ public class Main {
             detectRegex(t);
             detectReflection(t);
             detectStreams(t);
+            detectThreading(t);
         }
 
         private void detectTypeFeatures(IMethodBinding m) {
@@ -635,13 +643,7 @@ public class Main {
 
         @Override
         public boolean visit(ClassInstanceCreation node) {
-            ITypeBinding t = node.resolveTypeBinding();
-
-            detectTypeFeatures(t);
-
-            if (isSubtypeOf(t, "java.lang.Thread")
-                    || isSubtypeOf(t, "java.lang.Runnable"))
-                features.add("threads");
+            detectTypeFeatures(node.resolveTypeBinding());
 
             return true;
         }
