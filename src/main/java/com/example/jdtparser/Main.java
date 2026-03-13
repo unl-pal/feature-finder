@@ -406,6 +406,12 @@ public class Main {
         private void detectTypeFeatures(IMethodBinding m) {
             if (m == null) return;
 
+            detectTypeFeatures(m.getReturnType());
+            for (ITypeBinding t : m.getTypeArguments())
+                detectTypeFeatures(t);
+            for (ITypeBinding t : m.getParameterTypes())
+                detectTypeFeatures(t);
+
             detectMath(m);
             detectRegex(m);
             detectReflection(m);
@@ -496,6 +502,8 @@ public class Main {
             if (methodBinding != null) {
                 currentMethodStack.push(methodBinding);
 
+                detectTypeFeatures(methodBinding);
+
                 if (!"main".equals(methodBinding.getName())) {
                     if (Modifier.isStatic(methodBinding.getModifiers()))
                         features.add("static methods");
@@ -531,12 +539,6 @@ public class Main {
         @Override
         public boolean visit(MethodInvocation node) {
             IMethodBinding target = node.resolveMethodBinding();
-
-            @SuppressWarnings("unchecked")
-            List<Expression> args = node.arguments();
-            for (Expression arg : args)
-                detectTypeFeatures(arg.resolveTypeBinding());
-
             if (target == null) return true;
 
             detectTypeFeatures(target);
