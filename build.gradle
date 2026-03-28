@@ -3,7 +3,7 @@ plugins {
     id 'application'
 }
 
-group = 'com.example'
+group = 'edu.unl.pal'
 version = '1.0-SNAPSHOT'
 
 repositories {
@@ -15,5 +15,5 @@ dependencies {
 }
 
 application {
-    mainClass = 'com.example.jdtparser.Main'
+    mainClass = 'edu.unl.pal.featurefinder.Main'
 }
