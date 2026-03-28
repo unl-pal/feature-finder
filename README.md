@@ -13,6 +13,18 @@ This is a simple Java project that uses the Eclipse JDT parser to analyze Java s
    ./gradlew run --args='path/to/YourFile.java'
    ```
 
+   or run on a whole directory containing Java source files:
+   ```sh
+   ./gradlew run --args='path/to/directory'
+   ```
+
+The program will generate a `features.csv` file in the current directory, containing the identified features for each analyzed Java source file.  The structure looks like:
+
+```csv
+filename,loops,nested loops,conditionals,switch statements,recursion,exception-based control flow,arrays,collections,maps,recursive data structures,integers,floats,boolean,enumerations,strings,inheritance,interfaces,anonymous classes,abstract classes,polymorphism,generics,raw types,object casting,primitive casting,instance methods,static methods,threads,synchronization,interleavings,lambdas,Network and File I/O,GUI,RE Pattern Syntax,streams,reflection,Math
+./src/main/java/edu/unl/pal/featurefinder/Main.java,YES,NO,YES,YES,YES,YES,YES,YES,YES,NO,YES,NO,YES,NO,YES,YES,NO,NO,NO,YES,YES,NO,YES,NO,YES,YES,NO,NO,NO,YES,YES,NO,NO,YES,NO,NO
+```
+
 ## Main Features
 - Parses Java source files using Eclipse JDT
 - Identifies and reports on specific programming features
