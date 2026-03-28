@@ -323,11 +323,7 @@ public class Main {
         private void detectStreams(IMethodBinding m) {
             if (m == null) return;
 
-            ITypeBinding t = m.getDeclaringClass();
-            if (t == null) return;
-
-            if (t.getQualifiedName().startsWith("java.util.stream."))
-                features.add("streams");
+            detectStreams(m.getDeclaringClass());
         }
 
         private void detectStreams(ITypeBinding t) {
@@ -340,11 +336,7 @@ public class Main {
         private void detectRegex(IMethodBinding m) {
             if (m == null) return;
 
-            ITypeBinding t = m.getDeclaringClass();
-            if (t == null) return;
-
-            if (t.getQualifiedName().startsWith("java.util.regex."))
-                features.add("RE Pattern Syntax");
+            detectRegex(m.getDeclaringClass());
         }
 
         private void detectRegex(ITypeBinding t) {
@@ -359,13 +351,6 @@ public class Main {
 
             if (isSubtypeOf(t, "java.lang.Thread") || isSubtypeOf(t, "java.lang.Runnable"))
                 features.add("threads");
-        }
-
-        private void detectReflection(ITypeBinding t) {
-            if (t == null) return;
-
-            if (t.getQualifiedName().startsWith("java.lang.reflect."))
-                features.add("reflection");
         }
 
         private static final Set<String> CLASS_REFLECTION_METHODS = Set.of(
@@ -393,11 +378,18 @@ public class Main {
             ITypeBinding t = m.getDeclaringClass();
             if (t == null) return;
 
-            if (t.getQualifiedName().startsWith("java.lang.reflect."))
-                features.add("reflection");
-            else if (isSubtypeOf(t, "java.lang.Class") && CLASS_REFLECTION_METHODS.contains(m.getName()))
+            if (isSubtypeOf(t, "java.lang.Class") && CLASS_REFLECTION_METHODS.contains(m.getName()))
                 features.add("reflection");
             else if (isSubtypeOf(t, "java.lang.ClassLoader") && m.getName().equals("loadClass"))
+                features.add("reflection");
+            else
+                detectReflection(t);
+        }
+
+        private void detectReflection(ITypeBinding t) {
+            if (t == null) return;
+
+            if (t.getQualifiedName().startsWith("java.lang.reflect."))
                 features.add("reflection");
         }
 
@@ -409,6 +401,21 @@ public class Main {
 
             if ("java.lang.Math".equals(t.getQualifiedName()))
                 features.add("Math");
+        }
+
+        private void detectTypeFeatures(IMethodBinding m) {
+            if (m == null) return;
+
+            detectTypeFeatures(m.getReturnType());
+            for (ITypeBinding t : m.getTypeArguments())
+                detectTypeFeatures(t);
+            for (ITypeBinding t : m.getParameterTypes())
+                detectTypeFeatures(t);
+
+            detectMath(m);
+            detectRegex(m);
+            detectReflection(m);
+            detectStreams(m);
         }
 
         private void detectTypeFeatures(ITypeBinding t) {
@@ -425,21 +432,6 @@ public class Main {
             detectReflection(t);
             detectStreams(t);
             detectThreading(t);
-        }
-
-        private void detectTypeFeatures(IMethodBinding m) {
-            if (m == null) return;
-
-            detectTypeFeatures(m.getReturnType());
-            for (ITypeBinding t : m.getTypeArguments())
-                detectTypeFeatures(t);
-            for (ITypeBinding t : m.getParameterTypes())
-                detectTypeFeatures(t);
-
-            detectMath(m);
-            detectRegex(m);
-            detectReflection(m);
-            detectStreams(m);
         }
 
         /* -------------------------------------------------- */
