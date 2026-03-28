@@ -18,9 +18,8 @@ This is a simple Java project that uses the Eclipse JDT parser to analyze Java s
 - Identifies and reports on specific programming features
 
 ## Project Structure
-- `src/main/java/com/example/jdtparser/Main.java`: Main entry point and visitor implementation
+- `src/main/java/edu/unl/pal/featurefinder/Main.java`: Main entry point and visitor implementation
 - `build.gradle`: Gradle build configuration
 
 ## Requirements
 - Java 8 or higher
-- Internet connection for dependency download
