@@ -1,3 +1,5 @@
+features.csv
+
 .gradle
 **/build/
 !**/src/**/build/
