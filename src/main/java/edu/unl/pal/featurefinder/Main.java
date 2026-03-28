@@ -1,4 +1,4 @@
-package com.example.jdtparser;
+package edu.unl.pal.featurefinder;
 
 import org.eclipse.jdt.core.dom.ArrayCreation;
 import org.eclipse.jdt.core.dom.ArrayType;
