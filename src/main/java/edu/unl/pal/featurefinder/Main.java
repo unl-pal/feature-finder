@@ -40,6 +40,7 @@ import org.eclipse.jdt.core.JavaCore;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,6 +54,45 @@ import java.util.Set;
 import java.util.Stack;
 
 public class Main {
+    public static String[] featureOrder = {
+        "loops",
+        "nested loops",
+        "conditionals",
+        "switch statements",
+        "recursion",
+        "exception-based control flow",
+        "arrays",
+        "collections",
+        "maps",
+        "recursive data structures",
+        "integers",
+        "floats",
+        "boolean",
+        "enumerations",
+        "strings",
+        "inheritance",
+        "interfaces",
+        "anonymous classes",
+        "abstract classes",
+        "polymorphism",
+        "generics",
+        "raw types",
+        "object casting",
+        "primitive casting",
+        "instance methods",
+        "static methods",
+        "threads",
+        "synchronization",
+        "interleavings",
+        "lambdas",
+        "Network and File I/O",
+        "GUI",
+        "RE Pattern Syntax",
+        "streams",
+        "reflection",
+        "Math"
+    };
+
     public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
         @SuppressWarnings("deprecation")
         ASTParser parser = ASTParser.newParser(AST.JLS8);
@@ -88,45 +128,6 @@ public class Main {
             Paths.get(inputSource).toString()
         };
 
-        String[] featureOrder = {
-            "loops",
-            "nested loops",
-            "conditionals",
-            "switch statements",
-            "recursion",
-            "exception-based control flow",
-            "arrays",
-            "collections",
-            "maps",
-            "recursive data structures",
-            "integers",
-            "floats",
-            "boolean",
-            "enumerations",
-            "strings",
-            "inheritance",
-            "interfaces",
-            "anonymous classes",
-            "abstract classes",
-            "polymorphism",
-            "generics",
-            "raw types",
-            "object casting",
-            "primitive casting",
-            "instance methods",
-            "static methods",
-            "threads",
-            "synchronization",
-            "interleavings",
-            "lambdas",
-            "Network and File I/O",
-            "GUI",
-            "RE Pattern Syntax",
-            "streams",
-            "reflection",
-            "Math"
-        };
-
         Path root = Paths.get(inputSource);
 
         List<Path> files = new ArrayList<>();
@@ -140,40 +141,25 @@ public class Main {
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
             /* write header */
             writer.write("filename");
-            for (String f : featureOrder)
+            for (String f : Main.featureOrder) {
                 writer.write("," + f);
+            }
             writer.newLine();
 
             /* process each file */
             for (Path file : files) {
                 System.out.println("Analyzing " + file);
-                String source = new String(
-                    Files.readAllBytes(file),
-                    StandardCharsets.UTF_8
-                );
-
-                ASTParser parser = getParser(source, sourcePath, classPath, file.toFile());
-
-                CompilationUnit cu = (CompilationUnit) parser.createAST(null);
-
-                Set<String> foundFeatures = new HashSet<>();
-
-                FeatureVisitor visitor = new FeatureVisitor(foundFeatures);
-                cu.accept(visitor);
-                visitor.finalizeAnalysis();
-
-                /* heuristic interleavings */
-                if (foundFeatures.contains("threads") && foundFeatures.contains("synchronization"))
-                    foundFeatures.add("interleavings");
+                Set<String> foundFeatures = analyzeFile(classPath, sourcePath, file);
 
                 /* write row */
                 writer.write(file.toString());
 
-                for (String feature : featureOrder) {
-                    if (foundFeatures.contains(feature))
+                for (String feature : Main.featureOrder) {
+                    if (foundFeatures.contains(feature)) {
                         writer.write(",YES");
-                    else
+                    } else {
                         writer.write(",NO");
+                    }
                 }
 
                 writer.newLine();
@@ -181,6 +167,30 @@ public class Main {
         }
 
         System.out.println("Analysis complete. Results written to features.csv");
+    }
+
+    public static Set<String> analyzeFile(String[] classPath, String[] sourcePath, Path file) throws IOException {
+        String source = new String(
+            Files.readAllBytes(file),
+            StandardCharsets.UTF_8
+        );
+
+        ASTParser parser = getParser(source, sourcePath, classPath, file.toFile());
+
+        CompilationUnit cu = (CompilationUnit) parser.createAST(null);
+
+        Set<String> foundFeatures = new HashSet<>();
+
+        FeatureVisitor visitor = new FeatureVisitor(foundFeatures);
+        cu.accept(visitor);
+        visitor.finalizeAnalysis();
+
+        /* heuristic interleavings */
+        if (foundFeatures.contains("threads") && foundFeatures.contains("synchronization")) {
+            foundFeatures.add("interleavings");
+        }
+
+        return foundFeatures;
     }
 
     static class FeatureVisitor extends ASTVisitor {

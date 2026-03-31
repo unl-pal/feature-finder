@@ -12,8 +12,14 @@ repositories {
 
 dependencies {
     implementation 'org.eclipse.jdt:org.eclipse.jdt.core:3.36.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
 application {
     mainClass = 'edu.unl.pal.featurefinder.Main'
+}
+
+test {
+    useJUnitPlatform()
 }
