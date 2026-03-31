@@ -66,21 +66,26 @@ public class Main {
         parser.setBindingsRecovery(true);
         parser.setStatementsRecovery(true);
         parser.setUnitName(file.getPath());
-        parser.setEnvironment(classPath, sourcePath, new String[] { "UTF-8", "UTF-8" }, true);
+        parser.setEnvironment(classPath, sourcePath, null, true);
 
         return parser;
     }
 
     public static void main(String[] args) throws Exception {
-        String inputSource = ".";
+        if (args.length != 1) {
+            System.err.println("Usage: java -jar feature-finder.jar <source-directory>");
+            System.err.println("Analyzes Java source files in the given directory and subdirectories, and outputs a CSV of detected features.");
+            System.exit(1);
+        }
+
+        String inputSource = args[0];
 
         String[] classPath = {
-            Paths.get("build", "classes", "java", "main").toString()
+            Paths.get(inputSource).toString()
         };
 
         String[] sourcePath = {
-            Paths.get(inputSource).toString(),
-            Paths.get("src", "main", "java").toString()
+            Paths.get(inputSource).toString()
         };
 
         String[] featureOrder = {
