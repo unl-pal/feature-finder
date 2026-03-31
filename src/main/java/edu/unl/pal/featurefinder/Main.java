@@ -126,6 +126,7 @@ public class Main {
 
         List<Path> files = new ArrayList<>();
 
+        System.out.println("Scanning for Java source files in '" + root + "'");
         Files.walk(root)
             .filter(p -> p.toString().endsWith(".java"))
             .forEach(files::add);
@@ -139,6 +140,7 @@ public class Main {
 
             /* process each file */
             for (Path file : files) {
+                System.out.println("Analyzing " + file);
                 String source = new String(
                     Files.readAllBytes(file),
                     StandardCharsets.UTF_8
