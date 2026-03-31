@@ -129,6 +129,7 @@ public class Main {
         System.out.println("Scanning for Java source files in '" + root + "'");
         Files.walk(root)
             .filter(p -> p.toString().endsWith(".java"))
+            .filter(p -> p.toFile().isFile())
             .forEach(files::add);
 
         try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("features.csv"))) {
