@@ -94,8 +94,7 @@ public class Main {
     };
 
     public static ASTParser getParser(String source, String[] sourcePath, String[] classPath, File file) {
-        @SuppressWarnings("deprecation")
-        ASTParser parser = ASTParser.newParser(AST.JLS8);
+        ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
         parser.setSource(source.toCharArray());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
         Map<String, String> options = JavaCore.getOptions();
