@@ -692,6 +692,10 @@ public class Main {
             ITypeBinding currentClass = node.resolveBinding();
             currentClassStack.push(currentClass);
 
+            if (node.typeParameters() != null && !node.typeParameters().isEmpty()) {
+                features.add("generics");
+            }
+
             // Class inheritance
             if (node.getSuperclassType() != null) {
                 features.add("inheritance");
