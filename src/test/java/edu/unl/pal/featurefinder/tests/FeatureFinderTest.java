@@ -23,16 +23,23 @@ class FeatureFinderTest {
                 // Polymorphism is a special case that requires multiple files, so we have a dedicated test class for it.
                 continue;
             }
-            tests.add(DynamicTest.dynamicTest("Detects feature: " + feature, () -> {
-                String javaSource = FeatureTestSources.getSourceForFeature(feature);
-                Path tempFile = Files.createTempFile("FeatureTest_", ".java");
-                Files.write(tempFile, javaSource.getBytes(StandardCharsets.UTF_8));
-                String[] classPath = { tempFile.getParent().toString() };
-                String[] sourcePath = { tempFile.getParent().toString() };
-                Set<String> found = Main.analyzeFile(classPath, sourcePath, tempFile);
-                assertTrue(found.contains(feature), "Feature not detected: " + feature);
-                Files.deleteIfExists(tempFile);
-            }));
+            List<String> sources = FeatureTestSources.getSourcesForFeature(feature);
+            for (int i = 0; i < sources.size(); i++) {
+                String javaSource = sources.get(i);
+                int testNum = sources.size() > 1 ? i + 1 : 0;
+                String displayName = sources.size() > 1
+                    ? String.format("Detects feature: %s (case %d)", feature, testNum)
+                    : String.format("Detects feature: %s", feature);
+                tests.add(DynamicTest.dynamicTest(displayName, () -> {
+                    Path tempFile = Files.createTempFile("FeatureTest_", ".java");
+                    Files.write(tempFile, javaSource.getBytes(StandardCharsets.UTF_8));
+                    String[] classPath = { tempFile.getParent().toString() };
+                    String[] sourcePath = { tempFile.getParent().toString() };
+                    Set<String> found = Main.analyzeFile(classPath, sourcePath, tempFile);
+                    assertTrue(found.contains(feature), "Feature not detected: " + feature + " (case " + testNum + ")");
+                    Files.deleteIfExists(tempFile);
+                }));
+            }
         }
         return tests;
     }
