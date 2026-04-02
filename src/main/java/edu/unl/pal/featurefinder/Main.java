@@ -692,13 +692,17 @@ public class Main {
             ITypeBinding currentClass = node.resolveBinding();
             currentClassStack.push(currentClass);
 
+            // Class inheritance
             if (node.getSuperclassType() != null) {
                 features.add("inheritance");
                 detectTypeFeatures(node.getSuperclassType().resolveBinding());
             }
 
-            if (node.superInterfaceTypes().size() > 0)
+            // Interface implementation or declaration
+            if (!node.superInterfaceTypes().isEmpty()) {
                 features.add("interfaces");
+                features.add("inheritance");
+            }
 
             if (node.isInterface())
                 features.add("interfaces");
