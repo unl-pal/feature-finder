@@ -368,13 +368,13 @@ public class FeatureTestSources {
             // Implementing Runnable and starting
             "class R1 implements Runnable { public void run() {} } void f() { new Thread(new R1()).start(); }",
             // Thread with arguments (via constructor)
-            "class T2 extends Thread { int x; T2(int x) { this.x = x; } public void run() {} } void f() { new T2(5).start(); }"
-            // FIXME Anonymous Thread subclass
-            // "void f() { new Thread() { public void run() {} }.start(); }",
-            // FIXME Anonymous Runnable
-            // "void f() { new Thread(new Runnable() { public void run() {} }).start(); }",
-            // FIXME Lambda Runnable (Java 8+)
-            // "void f() { new Thread(() -> {}).start(); }"
+            "class T2 extends Thread { int x; T2(int x) { this.x = x; } public void run() {} } void f() { new T2(5).start(); }",
+            // Anonymous Thread subclass
+            "class T3 { void f() { new Thread() { public void run() {} }.start(); } }",
+            // Anonymous Runnable
+            "class R2 { void f() { new Thread(new Runnable() { public void run() {} }).start(); } }",
+            // Lambda Runnable (Java 8+)
+            "class L1 { void f() { new Thread(() -> {}).start(); } }"
         ));
         sources.put("synchronization", List.of(
             // Synchronized instance method
