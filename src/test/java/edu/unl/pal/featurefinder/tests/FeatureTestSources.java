@@ -27,7 +27,7 @@ public class FeatureTestSources {
         sources.put("anonymous classes", "class C { Runnable r = new Runnable(){ public void run(){} }; }");
         sources.put("abstract classes", "abstract class A{} class B extends A{}");
         sources.put("polymorphism", "class C { class A{void m(){}} class B extends A{void m(){}} void f(A a){a.m();} }");
-        sources.put("generics", "class G<T>{}");
+        sources.put("generics", "class G<T>{ G<String> g;}");
         sources.put("raw types", "class G<T>{} class R { G g; }");
         sources.put("object casting", "class A{} class B extends A{} void f(A a){B b=(B)a;}");
         sources.put("primitive casting", "class C { void f(){ int x=(int)1.0; } }");
