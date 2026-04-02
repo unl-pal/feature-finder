@@ -300,7 +300,9 @@ public class FeatureTestSources {
             // Cast as local variable
             "class A6{} class B6 extends A6{} class C4 { void m(A6 a) { B6 b = (B6)a; } }",
             // Casting with interfaces
-            "interface I {} class D1 implements I {} void f(Object o) { I i = (I)o; }"
+            "interface I {} class D1 implements I {} void f(Object o) { I i = (I)o; }",
+            // instanceof pattern matching (Java 17+)
+            "class A7{} class B7 extends A7{} void f(Object o) { if (o instanceof A7 a) {} }"
         ));
         sources.put("primitive casting", List.of(
             // Downcast double to int in method body

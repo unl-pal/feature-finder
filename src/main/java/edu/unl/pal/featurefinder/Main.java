@@ -42,6 +42,7 @@ import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.ParameterizedType;
+import org.eclipse.jdt.core.dom.PatternInstanceofExpression;
 import org.eclipse.jdt.core.dom.SimpleType;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.StringLiteral;
@@ -870,6 +871,14 @@ public class Main {
 
             detectImplicitConversion(lhs, rhs);
 
+            return true;
+        }
+
+        @Override
+        public boolean visit(PatternInstanceofExpression node) {
+            if (node.getPattern() != null) {
+                features.add("object casting");
+            }
             return true;
         }
 
