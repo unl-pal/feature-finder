@@ -478,6 +478,17 @@ public class Main {
         }
 
         @Override
+        public boolean visit(org.eclipse.jdt.core.dom.EnhancedForStatement node) {
+            enterLoop();
+            return true;
+        }
+
+        @Override
+        public void endVisit(org.eclipse.jdt.core.dom.EnhancedForStatement node) {
+            exitLoop();
+        }
+
+        @Override
         public boolean visit(WhileStatement node) {
             enterLoop();
             return true;
