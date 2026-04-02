@@ -671,6 +671,10 @@ public class Main {
         @Override
         public boolean visit(ArrayCreation node) {
             features.add("arrays");
+            ITypeBinding type = node.getType().resolveBinding();
+            if (type != null && type.isArray()) {
+                detectTypeFeatures(type.getElementType());
+            }
             return true;
         }
 
@@ -736,8 +740,11 @@ public class Main {
 
                 if (type != null && type.isRawType())
                     features.add("raw types");
-            }
 
+                if (type != null && type.isArray()) {
+                    detectTypeFeatures(type.getElementType());
+                }
+            }
             return true;
         }
         @Override
@@ -757,11 +764,9 @@ public class Main {
         public boolean visit(ArrayType node) {
             /* check if this array type belongs to a method parameter */
             if (node.getParent() instanceof SingleVariableDeclaration) {
-
                 SingleVariableDeclaration param = (SingleVariableDeclaration) node.getParent();
 
                 if (param.getParent() instanceof MethodDeclaration) {
-
                     MethodDeclaration method = (MethodDeclaration) param.getParent();
 
                     if ("main".equals(method.getName().getIdentifier()))
@@ -769,6 +774,10 @@ public class Main {
                 }
             }
             features.add("arrays");
+            ITypeBinding type = node.resolveBinding();
+            if (type != null && type.isArray()) {
+                detectTypeFeatures(type.getElementType());
+            }
             return true;
         }
 
