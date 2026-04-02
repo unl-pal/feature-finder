@@ -729,9 +729,23 @@ public class Main {
             if (currentClassStack.isEmpty()) return true;
 
             ITypeBinding fieldType = node.getType().resolveBinding();
+            ITypeBinding currentClass = currentClassStack.peek();
 
-            if (fieldType != null && fieldType.equals(currentClassStack.peek()))
+            // Direct self-reference
+            if (fieldType != null && fieldType.equals(currentClass)) {
                 features.add("recursive data structures");
+            }
+
+            // Indirect self-reference via parameterized type (e.g., List<ThisClass>)
+            if (fieldType != null && fieldType.isParameterizedType()) {
+                ITypeBinding[] typeArgs = fieldType.getTypeArguments();
+                for (ITypeBinding arg : typeArgs) {
+                    if (arg != null && arg.equals(currentClass)) {
+                        features.add("recursive data structures");
+                        break;
+                    }
+                }
+            }
 
             return true;
         }
