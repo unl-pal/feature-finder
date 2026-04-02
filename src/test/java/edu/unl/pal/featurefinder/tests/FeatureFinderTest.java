@@ -19,6 +19,10 @@ class FeatureFinderTest {
     Collection<DynamicTest> featureTests() {
         List<DynamicTest> tests = new ArrayList<>();
         for (String feature : Main.featureOrder) {
+            if (feature.equals("polymorphism")) {
+                // Polymorphism is a special case that requires multiple files, so we have a dedicated test class for it.
+                continue;
+            }
             tests.add(DynamicTest.dynamicTest("Detects feature: " + feature, () -> {
                 String javaSource = FeatureTestSources.getSourceForFeature(feature);
                 Path tempFile = Files.createTempFile("FeatureTest_", ".java");

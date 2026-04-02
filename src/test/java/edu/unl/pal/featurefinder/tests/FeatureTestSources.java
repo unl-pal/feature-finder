@@ -26,7 +26,7 @@ public class FeatureTestSources {
         sources.put("interfaces", "interface I{} class C implements I{}");
         sources.put("anonymous classes", "class C { Runnable r = new Runnable(){ public void run(){} }; }");
         sources.put("abstract classes", "abstract class A{} class B extends A{}");
-        sources.put("polymorphism", "class C { class A{void m(){}} class B extends A{void m(){}} void f(A a){a.m();} }");
+        // Polymorphism test is now a dedicated fixture and test class.
         sources.put("generics", "class G<T>{ G<String> g;}");
         sources.put("raw types", "class G<T>{} class R { G g; }");
         sources.put("object casting", "class A{} class B extends A{} void f(A a){B b=(B)a;}");
