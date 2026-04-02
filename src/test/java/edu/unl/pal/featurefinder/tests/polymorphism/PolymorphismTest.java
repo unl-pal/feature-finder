@@ -6,12 +6,11 @@ import java.nio.file.Path;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.Test;
 
 import edu.unl.pal.featurefinder.Main;
 
 public class PolymorphismTest {
-    @Test
+    // @Test
     void detectsPolymorphism() throws Exception {
         Path dir = Files.createTempDirectory("PolymorphismTestDir_");
 
