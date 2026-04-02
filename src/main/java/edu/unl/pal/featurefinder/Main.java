@@ -782,6 +782,10 @@ public class Main {
             if (type != null && type.isArray()) {
                 detectTypeFeatures(type.getElementType());
             }
+
+            // Also check the array type itself
+            detectTypeFeatures(type);
+
             return true;
         }
 
@@ -828,6 +832,9 @@ public class Main {
             else
                 features.add("object casting");
 
+            // Also check the cast type
+            detectTypeFeatures(t);
+
             return true;
         }
 
@@ -844,6 +851,10 @@ public class Main {
         @Override
         public boolean visit(AnonymousClassDeclaration node) {
             features.add("anonymous classes");
+            ITypeBinding anonymousClass = node.resolveBinding();
+            if (anonymousClass != null) {
+                detectTypeFeatures(anonymousClass);
+            }
             return true;
         }
 
