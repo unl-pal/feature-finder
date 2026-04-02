@@ -23,6 +23,7 @@ import org.eclipse.jdt.core.dom.AnonymousClassDeclaration;
 import org.eclipse.jdt.core.dom.ArrayAccess;
 import org.eclipse.jdt.core.dom.ArrayCreation;
 import org.eclipse.jdt.core.dom.ArrayType;
+import org.eclipse.jdt.core.dom.Assignment;
 import org.eclipse.jdt.core.dom.CastExpression;
 import org.eclipse.jdt.core.dom.CatchClause;
 import org.eclipse.jdt.core.dom.ClassInstanceCreation;
@@ -281,6 +282,12 @@ public class Main {
 
             if ("java.lang.String".equals(q))
                 features.add("strings");
+        }
+
+        private void detectImplicitConversion(ITypeBinding lhs, ITypeBinding rhs) {
+            if (lhs != null && rhs != null && lhs.isPrimitive() && rhs.isPrimitive() && !lhs.equals(rhs)) {
+                features.add("primitive casting");
+            }
         }
 
         private void detectCollections(ITypeBinding t) {
@@ -761,9 +768,14 @@ public class Main {
                 if (type != null && type.isArray()) {
                     detectTypeFeatures(type.getElementType());
                 }
+
+                if (node.getInitializer() != null) {
+                    detectImplicitConversion(type, node.getInitializer().resolveTypeBinding());
+                }
             }
             return true;
         }
+
         @Override
         public boolean visit(ClassInstanceCreation node) {
             detectTypeFeatures(node.resolveTypeBinding());
@@ -847,6 +859,16 @@ public class Main {
 
             // Also check the cast type
             detectTypeFeatures(t);
+
+            return true;
+        }
+
+        @Override
+        public boolean visit(Assignment node) {
+            ITypeBinding lhs = node.getLeftHandSide().resolveTypeBinding();
+            ITypeBinding rhs = node.getRightHandSide().resolveTypeBinding();
+
+            detectImplicitConversion(lhs, rhs);
 
             return true;
         }
